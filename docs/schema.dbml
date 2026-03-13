@@ -1,0 +1,87 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+Table organizations {
+  id uuid [pk, default: `gen_random_uuid()`]
+  owner_identity_id uuid [ref: > identities.id] // deffered
+  display_name varchar
+  slug citext
+  settings jsonb [null]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  deleted_at timestamptz [null]
+
+  indexes {
+    slug [unique]
+  }
+}
+
+
+Table identities {
+  id uuid [pk, default: `gen_random_uuid()`]
+  org_id uuid [ref: > organizations.id]
+  email citext
+  display_name varchar [null]
+  password_hash varchar [null]
+  verified bool [default: false]
+  active bool [default: true]
+  failed_login_attempts int [default: 0]
+  locked_until timestamptz [null]
+  last_login_at timestamptz [null]
+  metadata jsonb [null]
+  created_at timestamptz [default: `now()`]
+  updated_at timestamptz [default: `now()`]
+  deleted_at timestamptz [null]
+
+  indexes {
+    (org_id, email) [unique]
+  }
+}
+
+Table api_keys {
+  id uuid [pk, default: `gen_random_uuid()`]
+  org_id uuid [ref: > organizations.id]
+  name varchar
+  key_prefix varchar
+  key_hash varchar
+  last_used_at timestamptz [null]
+  expires_at timestamptz [null]
+  revoked_at timestamptz [null]
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    key_hash [unique]
+  }
+}
+
+Table sessions {
+  id uuid [pk, default: `gen_random_uuid()`]
+  identity_id uuid [ref: > identities.id]
+  device_info varchar
+  user_agent varchar
+  token_hash varchar
+  ip_address varchar
+  last_active_at timestamptz [null]
+  expires_at timestamptz [null]
+  revoked_at timestamptz [null]
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    token_hash [unique]
+  }
+}
+
+Table tokens {
+  id uuid [pk, default: `gen_random_uuid()`]
+  identity_id uuid [ref: > identities.id]
+  token_type varchar
+  token_hash varchar
+  expires_at timestamptz [null]
+  used_at timestamptz [null]
+  created_at timestamptz [default: `now()`]
+
+  indexes {
+    token_hash [unique]
+  }
+}
+
