@@ -13,3 +13,7 @@ migrate-down-one:
 
 run-server:
 	go run cmd/main.go
+
+
+air:
+	air
