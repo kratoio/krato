@@ -1,7 +1,12 @@
 package api
 
 import (
+	"context"
+	"log"
 	"net/http"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,8 +41,40 @@ func New(cfg *config.Config) (*API, error) {
 }
 
 func(a *API) Start() error {
-	if err := http.ListenAndServe(":" + a.cfg.Port, a.router); err != nil {
-		return err
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+
+	defer stop()
+
+	server := &http.Server{
+		Addr: ":" + a.cfg.Port,
+		Handler: a.router,
 	}
-	return nil
+
+	go func() {
+
+		log.Printf("server started on port %s", a.cfg.Port)
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Panicf("error starting the server %v", err)
+		}
+
+
+	} ()
+
+	<- ctx.Done()
+	stop()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second * 3)
+	defer cancel()
+
+	err := server.Shutdown(shutdownCtx)
+
+	if err != nil {
+		log.Printf("error shutting down the server gracefully: %v", err)
+		time.Sleep(time.Second * 3)
+	}
+
+	log.Print("server shutdown gracefully")
+
+	return err
 }
