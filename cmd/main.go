@@ -1,26 +1,34 @@
 package main
 
 import (
-	"log"
+	"os"
 
 	"github.com/kratoio/krato/internal/api"
 	"github.com/kratoio/krato/internal/config"
+	"github.com/kratoio/krato/internal/logger"
 )
 
 func main() {
+	l := logger.New("dev")
+
 	cfg, err := config.Load()
 
 	if err != nil {
-		log.Fatalf("error loading config: %s", err)
+		l.Error("error loading env file", "err", err)
+		os.Exit(1)
 	}
 
-	a, err := api.New(cfg)
+	l = logger.New(cfg.Env)
+
+	a, err := api.New(l, cfg)
 
 	if err != nil {
-		log.Fatalf("error creating api instance: %s", err)
+		l.Error("error creating api instance", "err", err)
+		os.Exit(1)
 	}
 
 	if err := a.Start(); err != nil {
-		log.Fatalf("error listening to the port %s: %s", cfg.Port, err)
+		l.Error("error starting the server", "err", err)
+		os.Exit(1)
 	}
 }
