@@ -2,8 +2,9 @@ package api
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -15,12 +16,13 @@ import (
 )
 
 type API struct {
-	cfg *config.Config
+	l      *slog.Logger
+	cfg    *config.Config
 	router chi.Router
 	dbpool *pgxpool.Pool
 }
 
-func New(cfg *config.Config) (*API, error) {
+func New(l *slog.Logger, cfg *config.Config) (*API, error) {
 	dbpool, err := database.Connect(*cfg)
 
 	if err != nil {
@@ -30,7 +32,8 @@ func New(cfg *config.Config) (*API, error) {
 	r := chi.NewRouter()
 
 	api := &API{
-		cfg: cfg,
+		l:      l,
+		cfg:    cfg,
 		dbpool: dbpool,
 		router: r,
 	}
@@ -40,41 +43,41 @@ func New(cfg *config.Config) (*API, error) {
 	return api, nil
 }
 
-func(a *API) Start() error {
+func (a *API) Start() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 
 	defer stop()
 
 	server := &http.Server{
-		Addr: ":" + a.cfg.Port,
+		Addr:    ":" + a.cfg.Port,
 		Handler: a.router,
 	}
 
 	go func() {
 
-		log.Printf("server started on port %s", a.cfg.Port)
+		a.l.Info("server started", "port", a.cfg.Port)
 
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Panicf("error starting the server %v", err)
+			a.l.Error("error starting the server", "err", err)
+			os.Exit(1)
 		}
 
+	}()
 
-	} ()
-
-	<- ctx.Done()
+	<-ctx.Done()
 	stop()
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second * 3)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	err := server.Shutdown(shutdownCtx)
 
 	if err != nil {
-		log.Printf("error shutting down the server gracefully: %v", err)
+		a.l.Error("error shutting down the server", "err", err)
 		time.Sleep(time.Second * 3)
 	}
 
-	log.Print("server shutdown gracefully")
+	a.l.Info("server shutdown successfully")
 
 	return err
 }
